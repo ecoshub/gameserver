@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"gameserver/config"
 	"gameserver/event"
 	"gameserver/utils"
 	"math/rand"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -104,9 +106,10 @@ func (s *SimulatedClient) WriteUDP(ip, port string, packet []byte) error {
 }
 
 func (s *SimulatedClient) ListenUDP(ip, port string, clientID uint16) error {
+	udpPort, _ := strconv.Atoi(config.UDPPort)
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
-		Port: 9090 + int(clientID),
-		IP:   net.ParseIP("0.0.0.0"),
+		Port: udpPort,
+		IP:   net.ParseIP(config.ServerListenAddress),
 	})
 	if err != nil {
 		return err

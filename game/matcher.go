@@ -11,24 +11,28 @@ import (
 )
 
 var (
-	// A lists that holds all client that requesting a game
-	gameQueue []*client.Client = make([]*client.Client, 0, 8)
-
-	// A map of clients in that same game attached with game ID
-	gameList map[uint16][]*client.Client = make(map[uint16][]*client.Client)
-
-	// gameID and client ID is designed as incrementables
-	// some uuid decleration can be more suitable
-	// '0' is reserved
-	currentGameID   uint16 = 1
-	currentClientID uint16 = 1
+	MainMatcher *Matcher
 )
 
-func StartMatcher(ip, port string) {
-	listen(ip, port)
+type Matcher struct {
+	gameQueue       []*client.Client
+	gameList        map[uint16][]*client.Client
+	currentGameID   uint16
+	currentClientID uint16
 }
 
-func listen(ip, port string) {
+func StartMatcher(ip, port string) {
+	MainMatcher = &Matcher{
+		gameQueue:       make([]*client.Client, 0, 8),
+		gameList:        make(map[uint16][]*client.Client),
+		currentGameID:   1,
+		currentClientID: 1,
+	}
+	// go MainMatcher.connectionControlRoutine()
+	MainMatcher.listen(ip, port)
+}
+
+func (m *Matcher) listen(ip, port string) {
 	listener, err := net.Listen("tcp", config.ServerListenAddress+":"+port)
 	if err != nil {
 		// listen error must be handle.
@@ -42,11 +46,11 @@ func listen(ip, port string) {
 			log.Println(err)
 			return
 		}
-		matchingRoutine(conn)
+		m.matchingRoutine(conn)
 	}
 }
 
-func matchingRoutine(conn net.Conn) {
+func (m *Matcher) matchingRoutine(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	msg, err := utils.ReadNBytes(reader, utils.HashLength)
 	if err != nil {
@@ -61,21 +65,21 @@ func matchingRoutine(conn net.Conn) {
 		return
 	}
 	log.Println("[auth] auth success!. remote: " + conn.RemoteAddr().String())
-	c := client.NewClient(currentClientID, conn)
-	gameQueue = append(gameQueue, c)
-	currentClientID++
-	checkQueue()
+	c := client.NewClient(m.currentClientID, conn)
+	m.gameQueue = append(m.gameQueue, c)
+	m.currentClientID++
+	m.checkQueue()
 }
 
 // Check queue if there are enough participant to fill a game
-func checkQueue() {
+func (m *Matcher) checkQueue() {
 	group := make([]*client.Client, 0, config.GameSize)
-	for _, c := range gameQueue {
+	for _, c := range m.gameQueue {
 		if c.State == client.ClientState.InQueue {
 			group = append(group, c)
 		}
 		if len(group) == config.GameSize {
-			createGame(group)
+			m.createGame(group)
 			setStateAll(group, client.ClientState.InPool)
 			log.Printf("[game on] there are enough participant to create a game. game size: %v\n", config.GameSize)
 			return
@@ -85,10 +89,10 @@ func checkQueue() {
 }
 
 // create the game and attach it to gameList
-func createGame(players []*client.Client) {
+func (m *Matcher) createGame(players []*client.Client) {
 	// send all clients its own client and game ID
 	for _, p := range players {
-		pack := event.PackGameIDAndClientID(currentGameID, p.ClientID)
+		pack := event.PackGameIDAndClientID(m.currentGameID, p.ClientID)
 		_, err := p.TCPconn.Write(pack)
 		if err != nil {
 			// if something went wrong change all states to 'InQueue' again
@@ -98,17 +102,37 @@ func createGame(players []*client.Client) {
 			// and remove the player from gameQueue
 			// to avoid any other problem.
 			// some attempt base approach might be good for this kind situations
-			removeFromGameQueue(p)
+			m.removeFromGameQueue(p)
 			return
 		}
 	}
-	gameList[currentGameID] = players
+	m.gameList[m.currentGameID] = players
 	for _, p := range players {
 		p.TCPconn.Close()
 		p.ChangeState(client.ClientState.InGame)
 	}
-	currentGameID++
-	clearGameQueue()
+	m.currentGameID++
+	m.clearGameQueue()
+}
+
+func (m *Matcher) clearGameQueue() {
+	newGameQueue := make([]*client.Client, 0, len(m.gameQueue))
+	for _, c := range m.gameQueue {
+		if c.State != client.ClientState.InGame {
+			newGameQueue = append(newGameQueue, c)
+		}
+	}
+	m.gameQueue = newGameQueue
+}
+
+func (m *Matcher) removeFromGameQueue(p *client.Client) {
+	newGameQueue := make([]*client.Client, 0, len(m.gameQueue)-1)
+	for _, c := range m.gameQueue {
+		if c.ClientID != p.ClientID {
+			newGameQueue = append(newGameQueue, c)
+		}
+	}
+	m.gameQueue = newGameQueue
 }
 
 func abortGameCreation(players []*client.Client) {
@@ -119,24 +143,4 @@ func setStateAll(clients []*client.Client, state string) {
 	for _, c := range clients {
 		c.ChangeState(state)
 	}
-}
-
-func clearGameQueue() {
-	newGameQueue := make([]*client.Client, 0, len(gameQueue))
-	for _, c := range gameQueue {
-		if c.State != client.ClientState.InGame {
-			newGameQueue = append(newGameQueue, c)
-		}
-	}
-	gameQueue = newGameQueue
-}
-
-func removeFromGameQueue(p *client.Client) {
-	newGameQueue := make([]*client.Client, 0, len(gameQueue))
-	for _, c := range gameQueue {
-		if c.ClientID != p.ClientID {
-			newGameQueue = append(newGameQueue, c)
-		}
-	}
-	gameQueue = newGameQueue
 }

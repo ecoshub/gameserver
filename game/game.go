@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"gameserver/client"
 	"gameserver/config"
 	"gameserver/event"
@@ -12,6 +11,10 @@ import (
 )
 
 var (
+	// if all clients simulating in the same machine
+	// ip and ports will be that same
+	// this flag indicates
+	// client simulation must change its udp listen port to avoid port collision
 	simulation bool = true
 )
 
@@ -50,7 +53,7 @@ func gameRoutine(conn *net.UDPConn) {
 
 func eventRouter(buffer []byte, addr string) {
 	gameID := event.GetGameID(buffer)
-	players, exists := gameList[gameID]
+	players, exists := MainMatcher.gameList[gameID]
 	if !exists {
 		log.Printf("error. There is no game with ID: %v, package must be broken.", gameID)
 		return
@@ -65,7 +68,7 @@ func eventRouter(buffer []byte, addr string) {
 
 func broadCastWithGameID(p *event.Packet) {
 	packet := event.PacketToBytes(p)
-	players := gameList[p.GameID]
+	players := MainMatcher.gameList[p.GameID]
 	for _, p := range players {
 		if !p.IsRegistered() {
 			log.Println("error. Broadcast to unattached connection")
@@ -76,6 +79,7 @@ func broadCastWithGameID(p *event.Packet) {
 		// Simulation in same computer would be impossible all client has same ip and same port
 		selectPort(p)
 
+		// NOTE an attemp system might be good
 		err := UDPSend(packet, p.Addr)
 		if err != nil {
 			log.Println(err)
@@ -132,5 +136,5 @@ func UDPSend(msg []byte, addr string) error {
 }
 
 func someDataManipulationAndCorrectionProcess(p *event.Packet) {
-	fmt.Printf("data processing, gameID: %v\n", p.GameID)
+	log.Printf("data processing, gameID: %v\n", p.GameID)
 }
