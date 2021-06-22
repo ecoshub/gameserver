@@ -52,7 +52,7 @@ func eventRouter(buffer []byte, addr string) {
 	gameID := event.GetGameID(buffer)
 	players, exists := gameList[gameID]
 	if !exists {
-		log.Printf("there is no game with ID: %v, package must be broken.", gameID)
+		log.Printf("error. There is no game with ID: %v, package must be broken.", gameID)
 		return
 	}
 	pack := event.BytesToPacket(buffer)
@@ -67,15 +67,15 @@ func broadCastWithGameID(p *event.Packet) {
 	packet := event.PacketToBytes(p)
 	players := gameList[p.GameID]
 	for _, p := range players {
-		if !p.UDPRegistered {
-			log.Println("broadcast to unattached connection")
+		if !p.IsRegistered() {
+			log.Println("error. Broadcast to unattached connection")
 			return
 		}
-		if simulation {
-			p.Addr = getIP(p.Addr) + ":" + strconv.Itoa(9090+int(p.ClientID))
-		} else {
-			p.Addr = getIP(p.Addr) + ":9090"
-		}
+
+		// I need to change client udp ports because.
+		// Simulation in same computer would be impossible all client has same ip and same port
+		selectPort(p)
+
 		err := UDPSend(packet, p.Addr)
 		if err != nil {
 			log.Println(err)
@@ -95,20 +95,22 @@ func IsUDPRegisterRequest(players []*client.Client, pack *event.Packet, addr str
 					}
 					p.Addr = addr
 					p.UDPRegistered = true
-					log.Printf("connection attached, client ID: %v\n", p.ClientID)
+					log.Printf("Client UDP register success, client ID: %v\n", p.ClientID)
 				}
 				if !p.UDPRegistered {
 					allAttached = false
 				}
 			}
 			if allAttached {
-				log.Println("sending game started event")
+				log.Println(">>> Sending game started event")
 				broadCastWithGameID(event.CreateEventPacket(pack.GameID, event.Events.Start, 0))
+
 				// gameover condition simulator
 				go func() {
 					utils.RandomSleepMillisecond(10000, 15000)
 					broadCastWithGameID(event.CreateEventPacket(pack.GameID, event.Events.GameOver, 0))
 				}()
+
 			}
 			return true
 		}

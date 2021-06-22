@@ -14,7 +14,7 @@ func main() {
 func startServerSimulation() {
 	go game.StartMatcher(config.ServerListenAddress, config.TCPPort)
 	go game.GameRouter(config.ServerListenAddress, config.UDPPort)
-	testClientSize := 2
+	testClientSize := 7
 	for i := 0; i < testClientSize; i++ {
 		utils.RandomSleepMillisecond(500, 2500)
 		go simulator.ClientSimulation(config.ClientRequestAddress, config.TCPPort, config.UDPPort)

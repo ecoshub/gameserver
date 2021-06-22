@@ -56,6 +56,7 @@ var (
 	ErrInvalidEventPacket error = errors.New("invalid event data packet size")
 )
 
+// New data package system for game event communication
 // |-------------------------------------------------------------------------------------------
 // |                header              |                events...                |  time     |
 // |-------------------------------------------------------------------------------------------

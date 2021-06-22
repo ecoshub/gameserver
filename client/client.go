@@ -34,3 +34,11 @@ func NewClient(clientID uint16, conn net.Conn) *Client {
 func (c *Client) ChangeState(state string) {
 	c.State = state
 }
+
+func (c *Client) IsRegistered() bool {
+	return c.UDPRegistered
+}
+
+func (c *Client) Register() {
+	c.UDPRegistered = true
+}
