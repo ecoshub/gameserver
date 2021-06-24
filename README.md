@@ -1,32 +1,35 @@
 # Game Server 
 
-**Attention. This is an assignment project and it's gonna be public for a brief period of time.**
-
 This is a "simple" game server. Main functionalities are matching and establishing a connection between players
 
 ## How to Run?
 
-run the **server.go** with **go run .** under **/cmd/server/**
+run the **server** first
 
-and run as many client as you want (kidding, go easy :) ).
+```sh
+go run ./cmd/server/server.go
+```
 
-client file is under **/cmd/client/** you can run it with **go run .** to.
+and run as many **client** as you want (kidding, go easy :) ).
+
+```sh
+go run ./cmd/client/client.go
+```
 
 ## Folder Structure and Packages:
 
-- **/server**:
-Server is main package of this project it contains the code for matching (TCP) and connection(UDP)
+| Package|Folder|  Description |
+| :----- | :--: | :------- |
+| server | **/server** |Server is main package of this project it contains the code for matching (TCP) and connection(UDP) |
+| client | **/client** | The maximum permitted value. |
+| config | **/config** | Config package hold server configurations such as connection information, game size etc. |
+| frame | **/frame** | Frame package is a data frame package. It designed and developed **just for this project** and It is a serializer for a game events. A detailed frame information is in below. frame contains **3** section.first is the **header**, it holds the important information about this frame such as gameID, clientID and number of event.second section is **events**. Event is a basic information packets. it holds a eventID and a data part.last section is for **time stamp**.|
+| simulator | **/simulator** | Simulator simulates a pseudo client events and it listens for certain events like **game over**. |
+| test | **/simulator** | There is only one test in this project and it controls the frame marshal and unmarshal functions.  |
+| utils | **/utils** | utils has general utility functions and the most important part is encoding and decoding functions. they are most important functions for frame package.  |
+| cmd | **/cmd** | cmd folder has **2** subfolder named server and client. This files can run by themselves to simulate a game server/client environment. there is a demonstration of client and server.|
 
-- **/client**:
-Client is an abstract representation of player.
-
-- **/config**:
-Config package hold server configurations such as connection information, game size etc.
-
-- **/frame**:
-Frame package is a data frame package. It developed **just for this project** and It is a serializer for a game events.
-
-detailed frame information is in below.
+**Frame in Detail**
 
 ```
 |------------------------------------|-----------------------------------------|-----------|
@@ -38,27 +41,9 @@ detailed frame information is in below.
 |  16bit  | 16bit  |     8bit        |   8bit   | 32bit |   8bit   | 32bit |...|   64bit   |
 |------------------------------------|-----------------------------------------|-----------|
 ```
-frame contains **3** section.
+--- 
 
-first is the **header**, it holds the important information about this frame such as gameID, clientID and number of event.
-
-second section is **events**. Event is a basic information packets. it holds a eventID and a data part.
-
-last section is for **time stamp**.
-
-- **/simulator**:
-Simulator simulates a pseudo client events and it listens for certain events like **game over**.
-
-- **/test**:
-There is only one test in this project and it controls the frame marshal and unmarshal functions. 
-
-- **/utils**:
-utils has general utility functions and the most important part is encoding and decoding functions. there are most important functions for frame package.
-
-- **/cmd**:
-cmd folder has **2** subfolder named server and client. This files can run by themselves to simulate a game server/client environment. 
-
-there is a demonstration of client and server.
+**Server and client communication demonstration**
 
 <p align="center">
   <img src="gameserver_simulation.gif">
@@ -97,6 +82,9 @@ When **game over** event has arrived client ends its process.
 
 *event sending and receiving functions are not serial functions. they are running concurrently
 
+
+**Flow charts**
+
 <p align="center">
   <img src="diagrams.png">
 </p>
@@ -107,9 +95,5 @@ When **game over** event has arrived client ends its process.
 
 - There is also a dummy non-functional authentication system. it is like a placeholder for better authentication and authorization systems.
 
-- There is an easy interrupt handle for client and server. If server interrupted with SIGINT, SIGTERN or SIGQUIT it send a **disconnected** event to server and server broadcasts a **game over** event to all players. Likewise If server interrupted it send the same **game over** event to all players in all games.
+- There is an easy interrupt handle for client and server. If client receives an interrupt (SIGINT, SIGTERN or SIGQUIT) it sends a **disconnected** event to server and server broadcasts a **game over** event to all players. Likewise If server interrupted it send the same **game over** event to all players in all games.
 
-
-I wish to deliver this assignment sooner but my workload was pretty intens this week.
-
-Thank you for sending me this assignment, it was very fun and honestly it reminds me the times when I used to write code just for fun.
