@@ -23,7 +23,6 @@ func SprintStruct(i interface{}) string {
 
 func RandomSleepMillisecond(min, max int) {
 	t := rand.Intn(max-min) + min
-	fmt.Println(t)
 	time.Sleep(time.Millisecond * time.Duration(t))
 }
 

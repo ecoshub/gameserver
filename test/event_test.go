@@ -32,10 +32,10 @@ func TestEventPackage(t *testing.T) {
 	}
 
 	// to packet
-	pack := frame.PacketToBytes(packObject)
+	pack := frame.Marshal(packObject)
 
 	// to packet object
-	newPacket := frame.BytesToPacket(pack)
+	newPacket := frame.Unmarshal(pack)
 	packObject.TimeStamp = packObject.TimeStamp.Round(time.Nanosecond * 100)
 	newPacket.TimeStamp = newPacket.TimeStamp.Round(time.Nanosecond * 100)
 

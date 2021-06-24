@@ -47,13 +47,14 @@ func (s *Server) gameRoutine(conn *net.UDPConn) {
 
 func (s *Server) eventRouter(buffer []byte, addr string) {
 	gameID := frame.GetGameID(buffer)
-	players, exists := s.gameList[gameID]
+	players, exists := s.gameLobby[gameID]
 	if !exists {
-		log.Printf("error. There is no game with ID: %v, package must be broken.", gameID)
+		// handle later
+		// log.Printf("event comming from GID: %v.", gameID)
 		return
 	}
 
-	pack := frame.BytesToPacket(buffer)
+	pack := frame.Unmarshal(buffer)
 	if pack.IsEventPack(frame.Events.Register) {
 		player, err := selectPlayer(players, pack.ClientID)
 		if err != nil {
@@ -62,7 +63,7 @@ func (s *Server) eventRouter(buffer []byte, addr string) {
 		}
 		// register UDP address
 		registerPlayer(player, addr)
-		if checkAllPlayerRegistered(players) {
+		if s.checkAllPlayerRegistered(players, pack.GameID) {
 			log.Println(">>> Sending game started event")
 			startEventPack := frame.CreateEventPacket(pack.GameID, frame.Events.Start, config.NullData)
 			s.broadCastWithGameID(startEventPack)
@@ -81,8 +82,8 @@ func (s *Server) eventRouter(buffer []byte, addr string) {
 }
 
 func (s *Server) broadCastWithGameID(p *frame.Packet) {
-	packet := frame.PacketToBytes(p)
-	players := s.gameList[p.GameID]
+	packet := frame.Marshal(p)
+	players := s.gameLobby[p.GameID]
 	for _, p := range players {
 		if !p.IsRegistered() {
 			log.Println("error. Broadcast to unattached connection")
@@ -117,18 +118,24 @@ func selectPlayer(players []*client.Client, clientID uint16) (*client.Client, er
 	return nil, errors.New("player not found")
 }
 
-func checkAllPlayerRegistered(players []*client.Client) bool {
+func (s *Server) checkAllPlayerRegistered(players []*client.Client, gameID uint16) bool {
+	if s.gameState[gameID] {
+		return false
+	}
 	for _, p := range players {
 		if !p.UDPRegistered {
 			return false
 		}
 	}
+	s.gameState[gameID] = true
 	return true
 }
 
 func (s *Server) simulateGameover(gameID uint16) {
 	utils.RandomSleepMillisecond(config.MinGameOverTime, config.MaxGameOverTime)
 	s.broadCastWithGameID(frame.CreateEventPacket(gameID, frame.Events.GameOver, config.NullData))
+	fmt.Printf("# Game %v ended.\n", gameID)
+	delete(s.gameLobby, gameID)
 }
 
 func UDPSend(msg []byte, addr string) error {
@@ -145,5 +152,5 @@ func UDPSend(msg []byte, addr string) error {
 }
 
 func someDataManipulationAndCorrectionProcess(p *frame.Packet) {
-	log.Printf("data processing, gameID: %v\n", p.GameID)
+	log.Printf(">> incoming data from, gameID: %v, client: %v\n", p.GameID, p.ClientID)
 }

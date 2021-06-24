@@ -1,6 +1,6 @@
 package config
 
-// maybe Those config values can be set with cmd arguments
+// maybe those config values can be set with cmd arguments
 // or a configuration file
 const (
 	// game size

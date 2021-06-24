@@ -88,7 +88,7 @@ func (s *Server) createGame(players []*client.Client) {
 			return
 		}
 	}
-	s.gameList[s.currentGameID] = players
+	s.gameLobby[s.currentGameID] = players
 	for _, p := range players {
 		p.TCPconn.Close()
 		p.ChangeState(client.ClientState.InGame)

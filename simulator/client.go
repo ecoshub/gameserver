@@ -7,6 +7,7 @@ import (
 	"gameserver/config"
 	"gameserver/frame"
 	"gameserver/utils"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -54,22 +55,20 @@ func ClientSimulation(ip, TCPport, UDPport string) error {
 	go s.interruptHandle(ip, UDPport)
 
 	s.waitForEvent(frame.Events.Start)
-	fmt.Println("Game Started!")
+
+	log.Println("# Game started")
 
 	go s.CheckGameOver()
 
-	start := time.Now()
 	for !*s.GameOver {
-		time.Sleep(time.Second)
+		utils.RandomSleepMillisecond(500, 1500)
 		err = s.WriteEvent(ip, UDPport, s.dummyEvent())
 		if err != nil {
 			fmt.Println(err)
 		}
-		if time.Since(start) > time.Second*30 {
-			return nil
-		}
 	}
-	fmt.Println("Game Over!")
+
+	log.Println("# Game over")
 
 	return nil
 }
@@ -83,7 +82,7 @@ func GameRequest(ip, port string) (uint16, uint16, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	fmt.Println("Game request registered. You are in the queue...")
+	log.Println("# Game request registered. You are in the queue...")
 	buffer := bufio.NewReader(conn)
 	msg, err := utils.ReadNBytes(buffer, frame.PackSizeOf.GameID+frame.PackSizeOf.ClientID)
 	if err != nil {
@@ -91,13 +90,13 @@ func GameRequest(ip, port string) (uint16, uint16, error) {
 	}
 	gameID := binary.LittleEndian.Uint16(msg[:frame.PackSizeOf.GameID])
 	clientID := binary.LittleEndian.Uint16(msg[frame.PackSizeOf.GameID : frame.PackSizeOf.GameID+frame.PackSizeOf.ClientID])
-	fmt.Printf("[in game] gameID: %v, clientID: %v\n", gameID, clientID)
+	log.Printf("# [pool] gameID: %v, clientID: %v\n", gameID, clientID)
 	return gameID, clientID, err
 }
 
 func (s *SimulatedClient) WriteEvent(ip, UDPport string, p *frame.Packet) error {
-	pack := frame.PacketToBytes(p)
-	fmt.Printf("[Register][GID:%v, CID:%v] >>> [pack: %v]\n", s.GameID, s.ClientID, pack)
+	pack := frame.Marshal(p)
+	log.Printf("> [sending] GID: %v, CID: %v, Event: %v\n", s.GameID, s.ClientID, resolveEvent(p))
 	err := s.WriteUDP(ip, UDPport, pack)
 	if err != nil {
 		fmt.Println(err)
@@ -119,7 +118,6 @@ func (s *SimulatedClient) WriteUDP(ip, port string, packet []byte) error {
 }
 
 func (s *SimulatedClient) ListenUDP(ip string, port int, clientID uint16) error {
-	// udpPort, _ := strconv.Atoi(config.UDPPort)
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
 		Port: port,
 		IP:   net.ParseIP(config.ServerListenAddress),
@@ -141,8 +139,8 @@ func (s *SimulatedClient) ListenUDP(ip string, port int, clientID uint16) error 
 func (s *SimulatedClient) CheckGameOver() {
 	for {
 		buffer := <-s.ReadChan
-		pack := frame.BytesToPacket(buffer)
-		fmt.Printf("[Game Start][GID:%v, CID:%v] <<< [pack: %v]\n", s.ClientID, s.GameID, buffer)
+		pack := frame.Unmarshal(buffer)
+		log.Printf("< [receiving] GID: %v, CID: %v, Event: %v\n", s.GameID, s.ClientID, resolveEvent(pack))
 		if pack.IsEventPack(frame.Events.GameOver) {
 			break
 		}
@@ -174,9 +172,9 @@ func initMessage() []byte {
 func (s *SimulatedClient) waitForEvent(e uint8) {
 	for {
 		buffer := <-s.ReadChan
-		pack := frame.BytesToPacket(buffer)
+		pack := frame.Unmarshal(buffer)
 		if pack.IsEventPack(e) {
-			fmt.Printf("[Game Start][GID:%v, CID:%v] <<< [pack: %v]\n", s.ClientID, s.GameID, buffer)
+			log.Printf("< [receiving] GID: %v, CID: %v, Event: %v\n", s.GameID, s.ClientID, resolveEvent(pack))
 			break
 		}
 	}
@@ -194,4 +192,15 @@ func (s *SimulatedClient) interruptHandle(ip, port string) {
 		time.Sleep(time.Millisecond * 500)
 		os.Exit(0)
 	}(s, ip, port)
+}
+
+func resolveEvent(pack *frame.Packet) string {
+	if len(pack.Events) == 1 {
+		event, exists := frame.EventName[pack.Events[0].ID]
+		if exists {
+			return event
+		}
+		return frame.EventName[frame.Events.Data]
+	}
+	return frame.EventName[frame.Events.Data]
 }

@@ -23,15 +23,26 @@ var (
 	Events = struct {
 		Register   uint8
 		Start      uint8
+		Data       uint8
 		End        uint8
 		Disconnect uint8
 		GameOver   uint8
 	}{
-		Register:   0,
-		Start:      1,
-		End:        2,
+		Data:       0,
+		Register:   1,
+		Start:      2,
+		End:        3,
 		Disconnect: 254,
 		GameOver:   255,
+	}
+
+	EventName map[uint8]string = map[uint8]string{
+		Events.Data:       "data",
+		Events.Register:   "register",
+		Events.Start:      "start",
+		Events.End:        "end",
+		Events.Disconnect: "disconnect",
+		Events.GameOver:   "gameover",
 	}
 
 	PackSizeOf = struct {
@@ -67,7 +78,7 @@ var (
 // |  16bit  | 16bit  |     8bit        |   8bit   | 32bit |   8bit   | 32bit |...|   64bit   |
 // |-------------------------------------------------------------------------------------------
 
-func BytesToPacket(p []byte) *Packet {
+func Unmarshal(p []byte) *Packet {
 	clientID := GetClientID(p)
 	gameID := GetGameID(p)
 	events := GetEvents(p)
@@ -119,7 +130,7 @@ func GetTimeStamp(packet []byte) time.Time {
 	return time.Unix(0, int64(timeRead))
 }
 
-func PacketToBytes(p *Packet) []byte {
+func Marshal(p *Packet) []byte {
 	buffer := make([]byte, 0, MaxPacketSize)
 
 	clientIDBytes, _ := utils.ToBytes(p.ClientID)
