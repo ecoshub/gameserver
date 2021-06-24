@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"gameserver/config"
-	"gameserver/event"
+	"gameserver/frame"
 	"gameserver/utils"
 	"math/rand"
 	"net"
@@ -33,9 +33,14 @@ func ClientSimulation(ip, TCPport, UDPport string) error {
 		GameOver: &gameover,
 	}
 
-	go s.ListenUDP(ip, UDPport, clientID)
+	port, _ := strconv.Atoi(UDPport)
+	if config.Simulation {
+		port += int(clientID)
+	}
 
-	registerPack := event.CreateRegisterPack(s.GameID, s.ClientID)
+	go s.ListenUDP(ip, port, clientID)
+
+	registerPack := frame.CreateRegisterPack(s.GameID, s.ClientID)
 
 	err = s.WriteEvent(ip, UDPport, registerPack)
 	if err != nil {
@@ -43,14 +48,13 @@ func ClientSimulation(ip, TCPport, UDPport string) error {
 		return err
 	}
 
-	s.waitForEvent(event.Events.Start)
+	s.waitForEvent(frame.Events.Start)
 	fmt.Println("Game Started!")
 
 	go s.CheckGameOver()
 
 	for !*s.GameOver {
 		time.Sleep(time.Second)
-		// time.Sleep(randomEventTime())
 		err = s.WriteEvent(ip, UDPport, s.dummyEvent())
 		if err != nil {
 			fmt.Println(err)
@@ -72,18 +76,18 @@ func GameRequest(ip, port string) (uint16, uint16, error) {
 	}
 	fmt.Println("Game request registered. You are in the queue...")
 	buffer := bufio.NewReader(conn)
-	msg, err := utils.ReadNBytes(buffer, event.PackSizeOf.GameID+event.PackSizeOf.ClientID)
+	msg, err := utils.ReadNBytes(buffer, frame.PackSizeOf.GameID+frame.PackSizeOf.ClientID)
 	if err != nil {
 		return 0, 0, err
 	}
-	gameID := binary.LittleEndian.Uint16(msg[:event.PackSizeOf.GameID])
-	clientID := binary.LittleEndian.Uint16(msg[event.PackSizeOf.GameID : event.PackSizeOf.GameID+event.PackSizeOf.ClientID])
+	gameID := binary.LittleEndian.Uint16(msg[:frame.PackSizeOf.GameID])
+	clientID := binary.LittleEndian.Uint16(msg[frame.PackSizeOf.GameID : frame.PackSizeOf.GameID+frame.PackSizeOf.ClientID])
 	fmt.Printf("[in game] gameID: %v, clientID: %v\n", gameID, clientID)
 	return gameID, clientID, err
 }
 
-func (s *SimulatedClient) WriteEvent(ip, UDPport string, p *event.Packet) error {
-	pack := event.PacketToBytes(p)
+func (s *SimulatedClient) WriteEvent(ip, UDPport string, p *frame.Packet) error {
+	pack := frame.PacketToBytes(p)
 	fmt.Printf("[Register][GID:%v, CID:%v] >>> [pack: %v]\n", s.GameID, s.ClientID, pack)
 	err := s.WriteUDP(ip, UDPport, pack)
 	if err != nil {
@@ -105,10 +109,10 @@ func (s *SimulatedClient) WriteUDP(ip, port string, packet []byte) error {
 	return nil
 }
 
-func (s *SimulatedClient) ListenUDP(ip, port string, clientID uint16) error {
-	udpPort, _ := strconv.Atoi(config.UDPPort)
+func (s *SimulatedClient) ListenUDP(ip string, port int, clientID uint16) error {
+	// udpPort, _ := strconv.Atoi(config.UDPPort)
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
-		Port: udpPort,
+		Port: port,
 		IP:   net.ParseIP(config.ServerListenAddress),
 	})
 	if err != nil {
@@ -128,27 +132,25 @@ func (s *SimulatedClient) ListenUDP(ip, port string, clientID uint16) error {
 func (s *SimulatedClient) CheckGameOver() {
 	for {
 		buffer := <-s.ReadChan
-		pack := event.BytesToPacket(buffer)
+		pack := frame.BytesToPacket(buffer)
 		fmt.Printf("[Game Start][GID:%v, CID:%v] <<< [pack: %v]\n", s.ClientID, s.GameID, buffer)
-		if len(pack.Events) == 1 {
-			if pack.Events[0].ID == event.Events.GameOver {
-				break
-			}
+		if pack.IsEventPack(frame.Events.GameOver) {
+			break
 		}
 	}
 	*s.GameOver = true
 }
 
-func (s *SimulatedClient) dummyEvent() *event.Packet {
+func (s *SimulatedClient) dummyEvent() *frame.Packet {
 	noe := rand.Intn(4)
-	events := make([]*event.Event, noe)
+	events := make([]*frame.Event, noe)
 	for i := range events {
-		events[i] = &event.Event{
+		events[i] = &frame.Event{
 			ID:   uint8(rand.Intn(256)),
 			Data: int32(rand.Int31()),
 		}
 	}
-	return &event.Packet{
+	return &frame.Packet{
 		ClientID:  s.ClientID,
 		GameID:    s.GameID,
 		Events:    events,
@@ -163,12 +165,10 @@ func initMessage() []byte {
 func (s *SimulatedClient) waitForEvent(e uint8) {
 	for {
 		buffer := <-s.ReadChan
-		pack := event.BytesToPacket(buffer)
-		if len(pack.Events) == 1 {
-			if pack.Events[0].ID == e {
-				fmt.Printf("[Game Start][GID:%v, CID:%v] <<< [pack: %v]\n", s.ClientID, s.GameID, buffer)
-				break
-			}
+		pack := frame.BytesToPacket(buffer)
+		if pack.IsEventPack(e) {
+			fmt.Printf("[Game Start][GID:%v, CID:%v] <<< [pack: %v]\n", s.ClientID, s.GameID, buffer)
+			break
 		}
 	}
 }

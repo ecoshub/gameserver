@@ -1,4 +1,4 @@
-package game
+package server
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func getIP(addr string) string {
 
 func selectPort(c *client.Client) {
 	udpPortInt, _ := strconv.Atoi(config.UDPPort)
-	if simulation {
+	if config.Simulation {
 		c.Addr = fmt.Sprintf("%v:%v", getIP(c.Addr), udpPortInt+int(c.ClientID))
 		return
 	}

@@ -1,10 +1,10 @@
-package game
+package server
 
 import (
 	"bufio"
 	"gameserver/client"
 	"gameserver/config"
-	"gameserver/event"
+	"gameserver/frame"
 	"gameserver/utils"
 	"log"
 	"net"
@@ -28,7 +28,6 @@ func StartMatcher(ip, port string) {
 		currentGameID:   1,
 		currentClientID: 1,
 	}
-	// go MainMatcher.connectionControlRoutine()
 	MainMatcher.listen(ip, port)
 }
 
@@ -92,7 +91,7 @@ func (m *Matcher) checkQueue() {
 func (m *Matcher) createGame(players []*client.Client) {
 	// send all clients its own client and game ID
 	for _, p := range players {
-		pack := event.PackGameIDAndClientID(m.currentGameID, p.ClientID)
+		pack := frame.PackGameIDAndClientID(m.currentGameID, p.ClientID)
 		_, err := p.TCPconn.Write(pack)
 		if err != nil {
 			// if something went wrong change all states to 'InQueue' again

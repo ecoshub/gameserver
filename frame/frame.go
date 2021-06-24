@@ -1,4 +1,4 @@
-package event
+package frame
 
 import (
 	"encoding/binary"
@@ -12,7 +12,6 @@ type Event struct {
 	ID   uint8
 	Data int32
 }
-
 type Packet struct {
 	ClientID  uint16
 	GameID    uint16
@@ -56,7 +55,7 @@ var (
 	ErrInvalidEventPacket error = errors.New("invalid event data packet size")
 )
 
-// New data package system for game event communication
+// Custom data package system for game event communication
 // |-------------------------------------------------------------------------------------------
 // |                header              |                events...                |  time     |
 // |-------------------------------------------------------------------------------------------
@@ -140,6 +139,15 @@ func PacketToBytes(p *Packet) []byte {
 	buffer = append(buffer, t...)
 
 	return buffer
+}
+
+func (p *Packet) IsEventPack(eventID uint8) bool {
+	if len(p.Events) == 1 {
+		if p.Events[0].ID == eventID {
+			return true
+		}
+	}
+	return false
 }
 
 func eventToBytes(e *Event) []byte {

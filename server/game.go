@@ -1,21 +1,15 @@
-package game
+package server
 
 import (
+	"errors"
+	"fmt"
 	"gameserver/client"
 	"gameserver/config"
-	"gameserver/event"
+	"gameserver/frame"
 	"gameserver/utils"
 	"log"
 	"net"
 	"strconv"
-)
-
-var (
-	// if all clients simulating in the same machine
-	// ip and ports will be that same
-	// this flag indicates
-	// client simulation must change its udp listen port to avoid port collision
-	simulation bool = true
 )
 
 func GameRouter(ip, port string) {
@@ -36,15 +30,15 @@ func GameRouter(ip, port string) {
 
 func gameRoutine(conn *net.UDPConn) {
 	for {
-		buff := make([]byte, event.MaxPacketSize)
+		buff := make([]byte, frame.MaxPacketSize)
 		n, addr, err := conn.ReadFrom(buff)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		buff = buff[:n]
-		if event.IsValid(buff) {
-			log.Println(event.ErrInvalidEventPacket)
+		if frame.IsValid(buff) {
+			log.Println(frame.ErrInvalidEventPacket)
 			continue
 		}
 		go eventRouter(buff, addr.String())
@@ -52,22 +46,37 @@ func gameRoutine(conn *net.UDPConn) {
 }
 
 func eventRouter(buffer []byte, addr string) {
-	gameID := event.GetGameID(buffer)
+	gameID := frame.GetGameID(buffer)
 	players, exists := MainMatcher.gameList[gameID]
 	if !exists {
 		log.Printf("error. There is no game with ID: %v, package must be broken.", gameID)
 		return
 	}
-	pack := event.BytesToPacket(buffer)
-	if IsUDPRegisterRequest(players, pack, addr) {
+
+	pack := frame.BytesToPacket(buffer)
+	if pack.IsEventPack(frame.Events.Register) {
+		player, err := selectPlayer(players, pack.ClientID)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		// register UDP address
+		registerPlayer(player, addr)
+		if checkAllPlayerRegistered(players) {
+			log.Println(">>> Sending game started event")
+			startEventPack := frame.CreateEventPacket(pack.GameID, frame.Events.Start, config.NullData)
+			broadCastWithGameID(startEventPack)
+			go simulateGameover(pack)
+		}
 		return
 	}
+
 	someDataManipulationAndCorrectionProcess(pack)
 	broadCastWithGameID(pack)
 }
 
-func broadCastWithGameID(p *event.Packet) {
-	packet := event.PacketToBytes(p)
+func broadCastWithGameID(p *frame.Packet) {
+	packet := frame.PacketToBytes(p)
 	players := MainMatcher.gameList[p.GameID]
 	for _, p := range players {
 		if !p.IsRegistered() {
@@ -88,38 +97,33 @@ func broadCastWithGameID(p *event.Packet) {
 	}
 }
 
-func IsUDPRegisterRequest(players []*client.Client, pack *event.Packet, addr string) bool {
-	if len(pack.Events) == 1 {
-		if pack.Events[0].ID == event.Events.Register {
-			allAttached := true
-			for _, p := range players {
-				if p.ClientID == pack.ClientID {
-					if p.UDPRegistered {
-						continue
-					}
-					p.Addr = addr
-					p.UDPRegistered = true
-					log.Printf("Client UDP register success, client ID: %v\n", p.ClientID)
-				}
-				if !p.UDPRegistered {
-					allAttached = false
-				}
-			}
-			if allAttached {
-				log.Println(">>> Sending game started event")
-				broadCastWithGameID(event.CreateEventPacket(pack.GameID, event.Events.Start, 0))
+func registerPlayer(player *client.Client, addr string) {
+	player.Addr = addr
+	player.UDPRegistered = true
+	log.Printf("Client UDP register success, client ID: %v\n", player.ClientID)
+}
 
-				// gameover condition simulator
-				go func() {
-					utils.RandomSleepMillisecond(10000, 15000)
-					broadCastWithGameID(event.CreateEventPacket(pack.GameID, event.Events.GameOver, 0))
-				}()
-
-			}
-			return true
+func selectPlayer(players []*client.Client, clientID uint16) (*client.Client, error) {
+	for _, p := range players {
+		if p.ClientID == clientID {
+			return p, nil
 		}
 	}
-	return false
+	return nil, errors.New("player not found")
+}
+
+func checkAllPlayerRegistered(players []*client.Client) bool {
+	for _, p := range players {
+		if !p.UDPRegistered {
+			return false
+		}
+	}
+	return true
+}
+
+func simulateGameover(pack *frame.Packet) {
+	utils.RandomSleepMillisecond(config.MinGameOverTime, config.MaxGameOverTime)
+	broadCastWithGameID(frame.CreateEventPacket(pack.GameID, frame.Events.GameOver, config.NullData))
 }
 
 func UDPSend(msg []byte, addr string) error {
@@ -135,6 +139,6 @@ func UDPSend(msg []byte, addr string) error {
 	return nil
 }
 
-func someDataManipulationAndCorrectionProcess(p *event.Packet) {
+func someDataManipulationAndCorrectionProcess(p *frame.Packet) {
 	log.Printf("data processing, gameID: %v\n", p.GameID)
 }

@@ -5,8 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
+
+func InterruptHandle() {
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	// signal catch routine
+	go func() {
+		<-signalChannel
+		fmt.Println("*******************")
+		time.Sleep(time.Microsecond * 100)
+		os.Exit(0)
+	}()
+}
 
 func PrintStruct(i interface{}) {
 	enc, _ := json.MarshalIndent(i, "", "  ")

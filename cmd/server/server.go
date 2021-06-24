@@ -3,15 +3,16 @@ package main
 import (
 	"fmt"
 	"gameserver/config"
-	"gameserver/game"
+	"gameserver/server"
 	"gameserver/utils"
 )
 
 func main() {
+	go utils.InterruptHandle()
 	fmt.Println("SERVER starting...")
-	go game.StartMatcher(config.ServerListenAddress, config.TCPPort)
+	go server.StartMatcher(config.ServerListenAddress, config.TCPPort)
 	fmt.Println("Matching service is on!")
-	go game.GameRouter(config.ServerListenAddress, config.UDPPort)
+	go server.GameRouter(config.ServerListenAddress, config.UDPPort)
 	fmt.Println("Game router is on!")
 	utils.Halt()
 }
