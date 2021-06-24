@@ -9,7 +9,10 @@ import (
 	"gameserver/utils"
 	"math/rand"
 	"net"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -40,7 +43,7 @@ func ClientSimulation(ip, TCPport, UDPport string) error {
 
 	go s.ListenUDP(ip, port, clientID)
 
-	registerPack := frame.CreateRegisterPack(s.GameID, s.ClientID)
+	registerPack := frame.CreatePack(s.GameID, s.ClientID, frame.Events.Register)
 
 	err = s.WriteEvent(ip, UDPport, registerPack)
 	if err != nil {
@@ -48,16 +51,22 @@ func ClientSimulation(ip, TCPport, UDPport string) error {
 		return err
 	}
 
+	go s.interruptHandle(ip, UDPport)
+
 	s.waitForEvent(frame.Events.Start)
 	fmt.Println("Game Started!")
 
 	go s.CheckGameOver()
 
+	start := time.Now()
 	for !*s.GameOver {
 		time.Sleep(time.Second)
 		err = s.WriteEvent(ip, UDPport, s.dummyEvent())
 		if err != nil {
 			fmt.Println(err)
+		}
+		if time.Since(start) > time.Second*30 {
+			return nil
 		}
 	}
 	fmt.Println("Game Over!")
@@ -171,4 +180,18 @@ func (s *SimulatedClient) waitForEvent(e uint8) {
 			break
 		}
 	}
+}
+
+func (s *SimulatedClient) interruptHandle(ip, port string) {
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	// signal catch routine
+	go func(s *SimulatedClient, ip, port string) {
+		<-signalChannel
+		dc := frame.CreatePack(s.GameID, s.ClientID, frame.Events.Disconnect)
+		s.WriteEvent(ip, port, dc)
+		time.Sleep(time.Millisecond * 500)
+		os.Exit(0)
+	}(s, ip, port)
 }

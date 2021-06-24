@@ -4,25 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"gameserver/client"
+	"gameserver/config"
 	"math/rand"
-	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 	"time"
 )
-
-func InterruptHandle() {
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	// signal catch routine
-	go func() {
-		<-signalChannel
-		fmt.Println("*******************")
-		time.Sleep(time.Microsecond * 100)
-		os.Exit(0)
-	}()
-}
 
 func PrintStruct(i interface{}) {
 	enc, _ := json.MarshalIndent(i, "", "  ")
@@ -56,4 +43,23 @@ func ReadNBytes(b *bufio.Reader, n int) ([]byte, error) {
 		buffer = append(buffer, singleByte)
 	}
 	return buffer, nil
+}
+
+func GetIP(addr string) string {
+	separator := 0
+	for i := range addr {
+		if addr[i] == ':' {
+			separator = i
+		}
+	}
+	return addr[:separator]
+}
+
+func SelectPort(c *client.Client) {
+	udpPortInt, _ := strconv.Atoi(config.UDPPort)
+	if config.Simulation {
+		c.Addr = fmt.Sprintf("%v:%v", GetIP(c.Addr), udpPortInt+int(c.ClientID))
+		return
+	}
+	c.Addr = GetIP(c.Addr) + ":9090"
 }

@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-func GameRouter(ip, port string) {
+func (s *Server) GameRouter(ip, port string) {
 	udpPort, _ := strconv.Atoi(config.UDPPort)
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
 		Port: udpPort,
@@ -25,10 +25,10 @@ func GameRouter(ip, port string) {
 		return
 	}
 	defer conn.Close()
-	gameRoutine(conn)
+	s.gameRoutine(conn)
 }
 
-func gameRoutine(conn *net.UDPConn) {
+func (s *Server) gameRoutine(conn *net.UDPConn) {
 	for {
 		buff := make([]byte, frame.MaxPacketSize)
 		n, addr, err := conn.ReadFrom(buff)
@@ -41,13 +41,13 @@ func gameRoutine(conn *net.UDPConn) {
 			log.Println(frame.ErrInvalidEventPacket)
 			continue
 		}
-		go eventRouter(buff, addr.String())
+		go s.eventRouter(buff, addr.String())
 	}
 }
 
-func eventRouter(buffer []byte, addr string) {
+func (s *Server) eventRouter(buffer []byte, addr string) {
 	gameID := frame.GetGameID(buffer)
-	players, exists := MainMatcher.gameList[gameID]
+	players, exists := s.gameList[gameID]
 	if !exists {
 		log.Printf("error. There is no game with ID: %v, package must be broken.", gameID)
 		return
@@ -65,19 +65,24 @@ func eventRouter(buffer []byte, addr string) {
 		if checkAllPlayerRegistered(players) {
 			log.Println(">>> Sending game started event")
 			startEventPack := frame.CreateEventPacket(pack.GameID, frame.Events.Start, config.NullData)
-			broadCastWithGameID(startEventPack)
-			go simulateGameover(pack)
+			s.broadCastWithGameID(startEventPack)
+			go s.simulateGameover(pack.GameID)
 		}
 		return
 	}
 
+	if pack.IsEventPack(frame.Events.Disconnect) {
+		s.broadCastWithGameID(frame.CreateEventPacket(gameID, frame.Events.GameOver, config.NullData))
+		return
+	}
+
 	someDataManipulationAndCorrectionProcess(pack)
-	broadCastWithGameID(pack)
+	s.broadCastWithGameID(pack)
 }
 
-func broadCastWithGameID(p *frame.Packet) {
+func (s *Server) broadCastWithGameID(p *frame.Packet) {
 	packet := frame.PacketToBytes(p)
-	players := MainMatcher.gameList[p.GameID]
+	players := s.gameList[p.GameID]
 	for _, p := range players {
 		if !p.IsRegistered() {
 			log.Println("error. Broadcast to unattached connection")
@@ -86,7 +91,7 @@ func broadCastWithGameID(p *frame.Packet) {
 
 		// I need to change client udp ports because.
 		// Simulation in same computer would be impossible all client has same ip and same port
-		selectPort(p)
+		utils.SelectPort(p)
 
 		// NOTE an attemp system might be good
 		err := UDPSend(packet, p.Addr)
@@ -121,9 +126,9 @@ func checkAllPlayerRegistered(players []*client.Client) bool {
 	return true
 }
 
-func simulateGameover(pack *frame.Packet) {
+func (s *Server) simulateGameover(gameID uint16) {
 	utils.RandomSleepMillisecond(config.MinGameOverTime, config.MaxGameOverTime)
-	broadCastWithGameID(frame.CreateEventPacket(pack.GameID, frame.Events.GameOver, config.NullData))
+	s.broadCastWithGameID(frame.CreateEventPacket(gameID, frame.Events.GameOver, config.NullData))
 }
 
 func UDPSend(msg []byte, addr string) error {

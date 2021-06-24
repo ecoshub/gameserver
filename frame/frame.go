@@ -21,15 +21,17 @@ type Packet struct {
 
 var (
 	Events = struct {
-		Register uint8
-		Start    uint8
-		End      uint8
-		GameOver uint8
+		Register   uint8
+		Start      uint8
+		End        uint8
+		Disconnect uint8
+		GameOver   uint8
 	}{
-		Register: 0,
-		Start:    1,
-		End:      2,
-		GameOver: 255,
+		Register:   0,
+		Start:      1,
+		End:        2,
+		Disconnect: 254,
+		GameOver:   255,
 	}
 
 	PackSizeOf = struct {
@@ -182,13 +184,13 @@ func CreateEventPacket(gameID uint16, event uint8, data int32) *Packet {
 	}
 }
 
-func CreateRegisterPack(gameID, clientID uint16) *Packet {
+func CreatePack(gameID, clientID uint16, event uint8) *Packet {
 	return &Packet{
 		ClientID: clientID,
 		GameID:   gameID,
 		Events: []*Event{
 			{
-				ID:   Events.Register,
+				ID:   event,
 				Data: int32(clientID),
 			},
 		},

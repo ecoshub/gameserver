@@ -8,11 +8,15 @@ import (
 )
 
 func main() {
-	go utils.InterruptHandle()
+
+	s := server.NewServer()
+
+	go s.InterruptHandle()
 	fmt.Println("SERVER starting...")
-	go server.StartMatcher(config.ServerListenAddress, config.TCPPort)
+	go s.StartMatcher(config.ServerListenAddress, config.TCPPort)
 	fmt.Println("Matching service is on!")
-	go server.GameRouter(config.ServerListenAddress, config.UDPPort)
+	go s.GameRouter(config.ServerListenAddress, config.UDPPort)
 	fmt.Println("Game router is on!")
 	utils.Halt()
+
 }
