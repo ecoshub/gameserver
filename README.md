@@ -20,14 +20,14 @@ go run ./cmd/client/client.go
 
 | Package|Folder|  Description |
 | :----- | :--: | :------- |
-| server | **/server** |Server is main package of this project it contains the code for matching (TCP) and connection(UDP) |
-| client | **/client** | The maximum permitted value. |
-| config | **/config** | Config package hold server configurations such as connection information, game size etc. |
+| server | **/server** | Server is main package of this project it contains the code for matching (TCP) and connection(UDP) |
+| client | **/client** | Client is an abstract representation of player. |
+| config | **/config** | Config package holds the server configurations such as connection information, game size etc. |
 | frame | **/frame** | Frame package is a data frame package. It designed and developed **just for this project** and It is a serializer for a game events. A detailed frame information is in below. frame contains **3** section.first is the **header**, it holds the important information about this frame such as gameID, clientID and number of event.second section is **events**. Event is a basic information packets. it holds a eventID and a data part.last section is for **time stamp**.|
 | simulator | **/simulator** | Simulator simulates a pseudo client events and it listens for certain events like **game over**. |
 | test | **/simulator** | There is only one test in this project and it controls the frame marshal and unmarshal functions.  |
-| utils | **/utils** | utils has general utility functions and the most important part is encoding and decoding functions. they are most important functions for frame package.  |
-| cmd | **/cmd** | cmd folder has **2** subfolder named server and client. This files can run by themselves to simulate a game server/client environment. there is a demonstration of client and server.|
+| utils | **/utils** | utils has general utility functions and the most important part is encoding and decoding functions. they are crucial for frame package.  |
+| cmd | **/cmd** | cmd folder has **2** subfolder named server and client. Those packages can run by themselves to simulate a game server/client environment. there is a demonstration of client and server.|
 
 **Frame in Detail**
 
@@ -55,7 +55,7 @@ go run ./cmd/client/client.go
 
 Mather is using **TCP** connections to receive game requests.
 
-After a game request has arrived matcher is adding that use to a queue. if there is enough participant in the queue, matcher groups them under a gameID and attaches this group to **the gameList**.
+After a game request has arrived matcher is adding that user to a queue. if there are enough participant in the queue, matcher groups them under a gameID and attaches this group to **the gameList**.
 
 After adding group to **the gameList** it removes players from **the gameQueue** and closes their TCP connections.
 
@@ -64,7 +64,7 @@ After adding group to **the gameList** it removes players from **the gameQueue**
 
 ### Game Routine
 
-Game routine listens **UDP** packets. First it needs a **register** request from client attached with game and client ID.
+Game routine listens **UDP** packets. First it needs a **register** request from client. And receives a response with gameID and clientID.
 
 When register arrive game routine start to reads and process incoming data and send back to clients.
 
@@ -72,11 +72,11 @@ When register arrive game routine start to reads and process incoming data and s
 
 ### Client Game Request
 
-Client send a initial message that contains a "token" if token is valid (and there is enough participant to create a game of course) server responds it with a gameID and clientID.
+Client sends an initial message that contains a "token" if token is valid (and there are enough participant to create a game of course) server responds it with a gameID and clientID.
 
 Client uses those information to send a initial UDP register message.
 
-Client waits for **game started** event and send a pseudo random events to other server.
+Client waits for **game started** event and send a pseudo random events to the server.
 
 When **game over** event has arrived client ends its process.
 
@@ -91,7 +91,7 @@ When **game over** event has arrived client ends its process.
 
 ### Notes
 
-- To avoid ip:port collision evet client open its UDP listen port differently. for example client 3's UDP port is 9093(9090+3)
+- To avoid ip:port collision event, all clients opens their UDP listen port differently. for example client 3's UDP port is 9093(9090+3)
 
 - There is also a dummy non-functional authentication system. it is like a placeholder for better authentication and authorization systems.
 
